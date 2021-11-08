@@ -82,7 +82,7 @@ class VoiceFixer(nn.Module):
         return librosa.istft(stft)
 
     @torch.no_grad()
-    def restore_inmem(self, wav_10k, cuda=False, mode=0, your_vocoder_func=None):
+    def restore_inmem(self, wav_10k, cuda=False, mode=0, your_vocoder_func=None, time_window=30):
         check_cuda_availability(cuda=cuda)
         self._model = try_tensor_cuda(self._model,cuda=cuda)
         if(mode == 0):
@@ -92,7 +92,7 @@ class VoiceFixer(nn.Module):
         elif(mode == 2):
             self._model.train() # More effective on seriously demaged speech
         res = []
-        seg_length = 44100*30
+        seg_length = 44100*time_window
         break_point = seg_length
         while break_point < wav_10k.shape[0]+seg_length:
             segment = wav_10k[break_point-seg_length:break_point]
@@ -116,8 +116,8 @@ class VoiceFixer(nn.Module):
         out = torch.cat(res,-1)
         return tensor2numpy(out.squeeze(0))
 
-    def restore(self, input, output, cuda=False, mode=0, your_vocoder_func=None):
+    def restore(self, input, output, cuda=False, mode=0, your_vocoder_func=None, time_window=30):
         wav_10k = self._load_wav(input, sample_rate=44100)
-        out_np_wav = self.restore_inmem(wav_10k, cuda=cuda, mode=mode, your_vocoder_func=your_vocoder_func)
+        out_np_wav = self.restore_inmem(wav_10k, cuda=cuda, mode=mode, your_vocoder_func=your_vocoder_func, time_window=time_window)
         save_wave(out_np_wav,fname=output,sample_rate=44100)
 
