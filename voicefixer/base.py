@@ -92,7 +92,7 @@ class VoiceFixer(nn.Module):
         elif(mode == 2):
             self._model.train() # More effective on seriously demaged speech
         res = []
-        seg_length = 44100*time_window
+        seg_length = int(44100*time_window)
         break_point = seg_length
         while break_point < wav_10k.shape[0]+seg_length:
             segment = wav_10k[break_point-seg_length:break_point]
