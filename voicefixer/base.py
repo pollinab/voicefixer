@@ -96,15 +96,18 @@ class VoiceFixer(nn.Module):
         break_point = seg_length
         while break_point < wav_10k.shape[0]+seg_length:
             segment = wav_10k[break_point-seg_length:break_point]
-            if (mode == 1):
-                segment = self.remove_higher_frequency(segment)
-            sp,mel_noisy = self._pre(self._model, segment, cuda)
-            out_model = self._model(sp, mel_noisy)
-            denoised_mel = from_log(out_model['mel'])
-            if(your_vocoder_func is None):
-                out = self._model.vocoder(denoised_mel, cuda=cuda)
+            if segment.size < 1024:
+                out = segment
             else:
-                out = your_vocoder_func(denoised_mel)
+                if (mode == 1):
+                    segment = self.remove_higher_frequency(segment)
+                sp,mel_noisy = self._pre(self._model, segment, cuda)
+                out_model = self._model(sp, mel_noisy)
+                denoised_mel = from_log(out_model['mel'])
+                if(your_vocoder_func is None):
+                    out = self._model.vocoder(denoised_mel, cuda=cuda)
+                else:
+                    out = your_vocoder_func(denoised_mel)
             # unify energy
             if(torch.max(torch.abs(out)) > 1.0):
                 out = out / torch.max(torch.abs(out))
