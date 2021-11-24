@@ -97,7 +97,7 @@ class VoiceFixer(nn.Module):
         while break_point < wav_10k.shape[0]+seg_length:
             segment = wav_10k[break_point-seg_length:break_point]
             if segment.size < 1024:
-                out = torch.tensor(segment)
+                out = torch.tensor(segment).unsqueeze(0).unsqueeze(0)
                 out = try_tensor_cuda(out, cuda=cuda)
             else:
                 if (mode == 1):
