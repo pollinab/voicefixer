@@ -82,7 +82,7 @@ class VoiceFixer(nn.Module):
         return librosa.istft(stft)
 
     @torch.no_grad()
-    def restore_inmem(self, wav_10k, cuda=False, mode=0, your_vocoder_func=None, time_window=30):
+    def restore_inmem(self, wav_10k, cuda=False, mode=0, your_vocoder_func=None, time_window=30, pad_len=0):
         check_cuda_availability(cuda=cuda)
         self._model = try_tensor_cuda(self._model,cuda=cuda)
         if(mode == 0):
@@ -96,6 +96,8 @@ class VoiceFixer(nn.Module):
         break_point = seg_length
         while break_point < wav_10k.shape[0]+seg_length:
             segment = wav_10k[break_point-seg_length:break_point]
+            if pad_len > 0:
+                segment = np.concatenate((np.zeros(pad_len), segment, np.zeros(pad_len)))
             if segment.size < 1024:
                 out = torch.tensor(segment).unsqueeze(0).unsqueeze(0)
                 out = try_tensor_cuda(out, cuda=cuda)
@@ -115,13 +117,15 @@ class VoiceFixer(nn.Module):
                 print("Warning: Exceed energy limit,", input)
             # frame alignment
             out, _ = self._trim_center(out, segment)
+            if pad_len > 0:
+                out = out[pad_len:-pad_len]
             res.append(out)
             break_point += seg_length
         out = torch.cat(res,-1)
         return tensor2numpy(out.squeeze(0))
 
-    def restore(self, input, output, cuda=False, mode=0, your_vocoder_func=None, time_window=30):
+    def restore(self, input, output, cuda=False, mode=0, your_vocoder_func=None, time_window=30, pad_len=0):
         wav_10k = self._load_wav(input, sample_rate=44100)
-        out_np_wav = self.restore_inmem(wav_10k, cuda=cuda, mode=mode, your_vocoder_func=your_vocoder_func, time_window=time_window)
+        out_np_wav = self.restore_inmem(wav_10k, cuda=cuda, mode=mode, your_vocoder_func=your_vocoder_func, time_window=time_window, pad_len=pad_len)
         save_wave(out_np_wav,fname=output,sample_rate=44100)
 
