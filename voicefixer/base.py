@@ -118,7 +118,7 @@ class VoiceFixer(nn.Module):
             # frame alignment
             out, _ = self._trim_center(out, segment)
             if pad_len > 0:
-                out = out[pad_len:-pad_len]
+                out = out[:, pad_len:-pad_len]
             res.append(out)
             break_point += seg_length
         out = torch.cat(res,-1)
