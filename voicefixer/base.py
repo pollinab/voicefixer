@@ -82,7 +82,7 @@ class VoiceFixer(nn.Module):
         return librosa.istft(stft)
 
     @torch.no_grad()
-    def restore_inmem(self, wav_10k, cuda=False, mode=0, your_vocoder_func=None):
+    def restore_inmem(self, wav_10k, cuda=False, mode=0, your_vocoder_func=None, time_window=30, pad_len=0):
         check_cuda_availability(cuda=cuda)
         self._model = try_tensor_cuda(self._model,cuda=cuda)
         if(mode == 0):
@@ -92,32 +92,40 @@ class VoiceFixer(nn.Module):
         elif(mode == 2):
             self._model.train() # More effective on seriously demaged speech
         res = []
-        seg_length = 44100*30
+        seg_length = int(44100*time_window)
         break_point = seg_length
         while break_point < wav_10k.shape[0]+seg_length:
             segment = wav_10k[break_point-seg_length:break_point]
-            if (mode == 1):
-                segment = self.remove_higher_frequency(segment)
-            sp,mel_noisy = self._pre(self._model, segment, cuda)
-            out_model = self._model(sp, mel_noisy)
-            denoised_mel = from_log(out_model['mel'])
-            if(your_vocoder_func is None):
-                out = self._model.vocoder(denoised_mel, cuda=cuda)
+            if pad_len > 0:
+                segment = np.concatenate((np.zeros(pad_len), segment, np.zeros(pad_len)))
+            if segment.size < 1024:
+                out = torch.tensor(segment).unsqueeze(0).unsqueeze(0)
+                out = try_tensor_cuda(out, cuda=cuda)
             else:
-                out = your_vocoder_func(denoised_mel)
+                if (mode == 1):
+                    segment = self.remove_higher_frequency(segment)
+                sp,mel_noisy = self._pre(self._model, segment, cuda)
+                out_model = self._model(sp, mel_noisy)
+                denoised_mel = from_log(out_model['mel'])
+                if(your_vocoder_func is None):
+                    out = self._model.vocoder(denoised_mel, cuda=cuda)
+                else:
+                    out = your_vocoder_func(denoised_mel)
             # unify energy
             if(torch.max(torch.abs(out)) > 1.0):
                 out = out / torch.max(torch.abs(out))
                 print("Warning: Exceed energy limit,", input)
             # frame alignment
             out, _ = self._trim_center(out, segment)
+            if pad_len > 0:
+                out = out[:, :, pad_len:-pad_len]
             res.append(out)
             break_point += seg_length
         out = torch.cat(res,-1)
         return tensor2numpy(out.squeeze(0))
 
-    def restore(self, input, output, cuda=False, mode=0, your_vocoder_func=None):
+    def restore(self, input, output, cuda=False, mode=0, your_vocoder_func=None, time_window=30, pad_len=0):
         wav_10k = self._load_wav(input, sample_rate=44100)
-        out_np_wav = self.restore_inmem(wav_10k, cuda=cuda, mode=mode, your_vocoder_func=your_vocoder_func)
+        out_np_wav = self.restore_inmem(wav_10k, cuda=cuda, mode=mode, your_vocoder_func=your_vocoder_func, time_window=time_window, pad_len=pad_len)
         save_wave(out_np_wav,fname=output,sample_rate=44100)
 
